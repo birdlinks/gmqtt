@@ -10,7 +10,7 @@ import (
 )
 
 // readStore reads in any data from the persistent datastore (if applicable).
-func (s *Server) readStore() error {
+func (s *server) readStore() error {
 	info, err := s.Store.ReadServerInfo()
 	if err != nil {
 		return fmt.Errorf("load server info; %w", err)
@@ -50,7 +50,7 @@ func (s *Server) readStore() error {
 }
 
 // loadServerInfo restores server info from the datastore.
-func (s *Server) loadServerInfo(v persistence.ServerInfo) {
+func (s *server) loadServerInfo(v persistence.ServerInfo) {
 	version := s.System.Version
 	v.ClientsConnected = 0
 	copySystemInfo(s.System, &v)
@@ -58,7 +58,7 @@ func (s *Server) loadServerInfo(v persistence.ServerInfo) {
 }
 
 // loadSubscriptions restores subscriptions from the datastore.
-func (s *Server) loadSubscriptions(v []persistence.Subscription) {
+func (s *server) loadSubscriptions(v []persistence.Subscription) {
 	for _, sub := range v {
 		_, c := s.Topics.Subscribe(sub.Filter, sub.Client, sub.QoS)
 		if cl, ok := s.Clients.Get(sub.Client); ok {
@@ -76,7 +76,7 @@ func (s *Server) loadSubscriptions(v []persistence.Subscription) {
 }
 
 // loadClients restores clients from the datastore.
-func (s *Server) loadClients(v []persistence.Client) {
+func (s *server) loadClients(v []persistence.Client) {
 	for _, c := range v {
 		cl := clients.NewClientStub(s.System, s.Options.InflightHandling)
 		cl.ID = c.ClientID
@@ -88,7 +88,7 @@ func (s *Server) loadClients(v []persistence.Client) {
 }
 
 // loadInflight restores inflight messages from the datastore.
-func (s *Server) loadInflight(v []persistence.Message) {
+func (s *server) loadInflight(v []persistence.Message) {
 	for _, msg := range v {
 		if client, ok := s.Clients.Get(msg.Client); ok {
 			client.Inflight.Set(msg.PacketID, &clients.InflightMessage{
@@ -106,7 +106,7 @@ func (s *Server) loadInflight(v []persistence.Message) {
 }
 
 // loadRetained restores retained messages from the datastore.
-func (s *Server) loadRetained(v []persistence.Message) {
+func (s *server) loadRetained(v []persistence.Message) {
 	for _, msg := range v {
 		s.Topics.RetainMessage(packets.Packet{
 			FixedHeader: packets.FixedHeader(msg.FixedHeader),
@@ -117,7 +117,7 @@ func (s *Server) loadRetained(v []persistence.Message) {
 }
 
 // genPersistenceInflightMessage gen persistence.Message from  clients.InflightMessage
-func (s *Server) genPersistenceInflightMessage(cl *clients.Client, inf *clients.InflightMessage) persistence.Message {
+func (s *server) genPersistenceInflightMessage(cl *clients.Client, inf *clients.InflightMessage) persistence.Message {
 	msg := fromPacketToMessage(&inf.Packet)
 	msg.ID = s.Store.GenInflightId(cl.ID, inf.Packet.PacketID)
 	msg.T = persistence.KInflight
@@ -128,7 +128,7 @@ func (s *Server) genPersistenceInflightMessage(cl *clients.Client, inf *clients.
 }
 
 // genPersistenceRetainedMessage gen persistence.Message from  clients.InflightMessage
-func (s *Server) genPersistenceRetainedMessage(pk *packets.Packet) persistence.Message {
+func (s *server) genPersistenceRetainedMessage(pk *packets.Packet) persistence.Message {
 	msg := fromPacketToMessage(pk)
 	msg.ID = s.Store.GenRetainedId(pk.TopicName)
 	msg.T = persistence.KRetained
@@ -164,7 +164,7 @@ func fromPacketToMessage(pk *packets.Packet) persistence.Message {
 }
 
 // genInflightMessage
-func (s *Server) genInflightMessage(msg *persistence.Message) *clients.InflightMessage {
+func (s *server) genInflightMessage(msg *persistence.Message) *clients.InflightMessage {
 	pk := fromMessageToPacket(msg)
 	inf := clients.InflightMessage{
 		Packet:  *pk,
@@ -217,7 +217,7 @@ const (
 
 // onStorage is a pass-through method which delegates errors from
 // the persistent storage adapter to the onError event hook.
-func (s *Server) onStorage(cl events.Clientlike, op int, in interface{}) {
+func (s *server) onStorage(cl events.Clientlike, op int, in interface{}) {
 	if op != StorageDel && op != StorageAdd {
 		return
 	}
@@ -236,7 +236,7 @@ func (s *Server) onStorage(cl events.Clientlike, op int, in interface{}) {
 	_ = s.onError(cl.Info(), fmt.Errorf("storage: %w", err))
 }
 
-func (s *Server) saveStorageEntity(in interface{}) error {
+func (s *server) saveStorageEntity(in interface{}) error {
 	var err error
 	switch entity := in.(type) {
 	case persistence.Client:
@@ -256,7 +256,7 @@ func (s *Server) saveStorageEntity(in interface{}) error {
 	return err
 }
 
-func (s *Server) delStorageEntity(in interface{}) error {
+func (s *server) delStorageEntity(in interface{}) error {
 	var err error
 	switch entity := in.(type) {
 	case persistence.Client:
@@ -275,7 +275,7 @@ func (s *Server) delStorageEntity(in interface{}) error {
 }
 
 // DeleteExpired the clean expired messages
-func (s *Server) deleteExpired() {
+func (s *server) deleteExpired() {
 	for _, c := range s.Clients.GetAll() {
 		var pids []uint16
 		for k, m := range c.Inflight.GetAll() {
@@ -297,7 +297,7 @@ type cleaner struct {
 	stop     chan struct{}
 }
 
-func (s *Server) runCleaner() {
+func (s *server) runCleaner() {
 	go func() {
 		ticker := time.NewTicker(s.cleaner.interval)
 		for {
@@ -312,6 +312,6 @@ func (s *Server) runCleaner() {
 	}()
 }
 
-func (s *Server) stopCleaner() {
+func (s *server) stopCleaner() {
 	s.cleaner.stop <- struct{}{}
 }

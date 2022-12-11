@@ -12,7 +12,7 @@ import (
 
 // processPacket processes an inbound packet for a client. Since the method is
 // typically called as a goroutine, errors are primarily for test checking purposes.
-func (s *Server) processPacket(cl *clients.Client, pk packets.Packet) error {
+func (s *server) processPacket(cl *clients.Client, pk packets.Packet) error {
 	switch pk.FixedHeader.Type {
 	case packets.Connect:
 		return s.processConnect(cl, pk)
@@ -54,19 +54,19 @@ func (s *Server) processPacket(cl *clients.Client, pk packets.Packet) error {
 // processConnect processes a Connect packet. The packet cannot be used to
 // establish a new connection on an existing connection. See EstablishConnection
 // instead.
-func (s *Server) processConnect(cl *clients.Client, pk packets.Packet) error {
+func (s *server) processConnect(cl *clients.Client, pk packets.Packet) error {
 	s.closeClient(cl, true, ErrClientReconnect)
 	return nil
 }
 
 // processDisconnect processes a Disconnect packet.
-func (s *Server) processDisconnect(cl *clients.Client, pk packets.Packet) error {
+func (s *server) processDisconnect(cl *clients.Client, pk packets.Packet) error {
 	s.closeClient(cl, false, ErrClientDisconnect)
 	return nil
 }
 
 // processPingreq processes a Pingreq packet.
-func (s *Server) processPingreq(cl *clients.Client, pk packets.Packet) error {
+func (s *server) processPingreq(cl *clients.Client, pk packets.Packet) error {
 	err := s.writeClient(cl, packets.Packet{
 		FixedHeader: packets.FixedHeader{
 			Type: packets.Pingresp,
@@ -80,7 +80,7 @@ func (s *Server) processPingreq(cl *clients.Client, pk packets.Packet) error {
 }
 
 // processPublish processes a Publish packet.
-func (s *Server) processPublish(cl *clients.Client, pk packets.Packet) error {
+func (s *server) processPublish(cl *clients.Client, pk packets.Packet) error {
 	// for v5, topic alias
 	if pk.Properties != nil && pk.Properties.TopicAlias != nil && *pk.Properties.TopicAlias != 0 {
 		if pk.TopicName == "" {
@@ -165,7 +165,7 @@ func (s *Server) processPublish(cl *clients.Client, pk packets.Packet) error {
 }
 
 // processPuback processes a Puback packet.
-func (s *Server) processPuback(cl *clients.Client, pk packets.Packet) error {
+func (s *server) processPuback(cl *clients.Client, pk packets.Packet) error {
 	q := cl.Inflight.Delete(pk.PacketID)
 	if q {
 		atomic.AddInt64(&s.System.Inflight, -1)
@@ -177,7 +177,7 @@ func (s *Server) processPuback(cl *clients.Client, pk packets.Packet) error {
 }
 
 // processPubrec processes a Pubrec packet.
-func (s *Server) processPubrec(cl *clients.Client, pk packets.Packet) error {
+func (s *server) processPubrec(cl *clients.Client, pk packets.Packet) error {
 	out := packets.Packet{
 		FixedHeader: packets.FixedHeader{
 			Type: packets.Pubrel,
@@ -195,7 +195,7 @@ func (s *Server) processPubrec(cl *clients.Client, pk packets.Packet) error {
 }
 
 // processPubrel processes a Pubrel packet.
-func (s *Server) processPubrel(cl *clients.Client, pk packets.Packet) error {
+func (s *server) processPubrel(cl *clients.Client, pk packets.Packet) error {
 	out := packets.Packet{
 		FixedHeader: packets.FixedHeader{
 			Type: packets.Pubcomp,
@@ -220,7 +220,7 @@ func (s *Server) processPubrel(cl *clients.Client, pk packets.Packet) error {
 }
 
 // processPubcomp processes a Pubcomp packet.
-func (s *Server) processPubcomp(cl *clients.Client, pk packets.Packet) error {
+func (s *server) processPubcomp(cl *clients.Client, pk packets.Packet) error {
 	q := cl.Inflight.Delete(pk.PacketID)
 	if q {
 		atomic.AddInt64(&s.System.Inflight, -1)
@@ -232,7 +232,7 @@ func (s *Server) processPubcomp(cl *clients.Client, pk packets.Packet) error {
 }
 
 // processSubscribe processes a Subscribe packet.
-func (s *Server) processSubscribe(cl *clients.Client, pk packets.Packet) error {
+func (s *server) processSubscribe(cl *clients.Client, pk packets.Packet) error {
 	retCodes := make([]byte, len(pk.Topics))
 	ci := cl.Info()
 	for i := 0; i < len(pk.Topics); i++ {
@@ -324,7 +324,7 @@ func (s *Server) processSubscribe(cl *clients.Client, pk packets.Packet) error {
 }
 
 // processUnsubscribe processes an unsubscribe packet.
-func (s *Server) processUnsubscribe(cl *clients.Client, pk packets.Packet) error {
+func (s *server) processUnsubscribe(cl *clients.Client, pk packets.Packet) error {
 	ci := cl.Info()
 	for i := 0; i < len(pk.Topics); i++ {
 		q, c := s.Topics.Unsubscribe(pk.Topics[i], cl.ID)
