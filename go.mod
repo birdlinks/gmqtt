@@ -13,7 +13,6 @@ require (
 	github.com/hashicorp/raft v1.3.11
 	github.com/hashicorp/raft-boltdb/v2 v2.2.2
 	github.com/jinzhu/copier v0.3.5
-	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/panjf2000/ants/v2 v2.6.0
 	github.com/rs/xid v1.4.0
 	github.com/satori/go.uuid v1.2.0
@@ -51,8 +50,8 @@ require (
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
+	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 // indirect
 	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781 // indirect
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
