@@ -1,8 +1,9 @@
-package gmqtt
+package server
 
 import (
 	"errors"
 	"fmt"
+	"github.com/birdlinks/gmqtt/internal/log"
 	"github.com/panjf2000/ants/v2"
 	"io"
 	"net"
@@ -38,6 +39,7 @@ type Server interface {
 	Serve() error
 	EstablishConnection(string, net.Conn, auth.Controller) error
 	Publish(string, []byte, bool) error
+	GetSystemInfo() *system.Info
 	Close() error
 }
 
@@ -76,6 +78,9 @@ var (
 
 	// defaultReceiveMaximum is the maximum number of QOS1 & 2 messages allowed to be "inflight"
 	defaultReceiveMaximum = 256
+
+	// plugins is a global variable that stores all plugins
+	plugins = make(map[string]NewPlugin)
 )
 
 // Server is an MQTT broker server. It should be created with server.New()
@@ -83,6 +88,7 @@ var (
 type server struct {
 	inline    inlineMessages       // channels for direct publishing.
 	Events    events.Events        // overrideable event hooks.
+	Plugin    []Plugin             // plugin
 	Store     persistence.Store    // a persistent storage backend if desired.
 	Options   *Options             // configurable server options.
 	Listeners *listeners.Listeners // listeners are network interfaces which listen for new connections.
@@ -112,6 +118,9 @@ type Options struct {
 
 	// InflightHandling is the handling mode of inflight message when the receive-maximum is exceeded, 0 closes the connection or 1 overwrites the old inflight message
 	InflightHandling int
+
+	// PluginOrder is the order of plugin execution
+	PluginOrder []string
 }
 
 // inlineMessages contains channels for handling inline (direct) publishing.
@@ -192,7 +201,16 @@ func NewServer(opts *Options) Server {
 	})
 	s.spool = spool
 
+	_ = s.initPlugins()
+	for _, p := range s.Plugin {
+		p.Init(s)
+	}
+	
 	return s
+}
+
+func (s *server) GetSystemInfo() *system.Info {
+	return s.System
 }
 
 // AddStore assigns a persistent storage backend to the server. This must be
@@ -730,6 +748,116 @@ func (s *server) publishSysTopics() {
 	}
 }
 
+func (s *server) initPlugins() error {
+	log.Info("initializing plugins")
+
+	var (
+		onProcessMessageWrappers []events.OnProcessMessageWrapper
+		onMessageWrappers        []events.OnMessageWrapper
+		onErrorWrappers          []events.OnErrorWrapper
+		onConnectWrappers        []events.OnConnectWrapper
+		onDisconnectWrappers     []events.OnDisconnectWrapper
+		onSubscribeWrappers      []events.OnSubscribeWrapper
+		onUnsubscribeWrappers    []events.OnUnsubscribeWrapper
+	)
+
+	for _, v := range s.Options.PluginOrder {
+		plg, err := plugins[v]()
+		if err != nil {
+			return err
+		}
+
+		s.Plugin = append(s.Plugin, plg)
+	}
+
+	for _, p := range s.Plugin {
+		hooks := p.Hook()
+
+		if hooks.OnProcessMessage != nil {
+			onProcessMessageWrappers = append(onProcessMessageWrappers)
+		}
+		if hooks.OnMessage != nil {
+			onMessageWrappers = append(onMessageWrappers, hooks.OnMessage)
+		}
+		if hooks.OnError != nil {
+			onErrorWrappers = append(onErrorWrappers, hooks.OnError)
+		}
+		if hooks.OnConnect != nil {
+			onConnectWrappers = append(onConnectWrappers, hooks.OnConnect)
+		}
+		if hooks.OnDisconnect != nil {
+			onDisconnectWrappers = append(onDisconnectWrappers, hooks.OnDisconnect)
+		}
+		if hooks.OnSubscribe != nil {
+			onSubscribeWrappers = append(onSubscribeWrappers, hooks.OnSubscribe)
+		}
+		if hooks.OnUnsubscribe != nil {
+			onUnsubscribeWrappers = append(onUnsubscribeWrappers, hooks.OnUnsubscribe)
+		}
+	}
+
+	if onProcessMessageWrappers != nil {
+		onProcessMessage := func(c events.Client, p events.Packet) (events.Packet, error) {
+			return events.Packet{}, nil
+		}
+		for i := len(onProcessMessageWrappers) - 1; i >= 0; i-- {
+			onProcessMessage = onProcessMessageWrappers[i](onProcessMessage)
+		}
+		s.Events.OnProcessMessage = onProcessMessage
+	}
+
+	if onMessageWrappers != nil {
+		onMessage := func(c events.Client, p events.Packet) (events.Packet, error) {
+			return p, nil
+		}
+		for i := len(onMessageWrappers) - 1; i >= 0; i-- {
+			onMessage = onMessageWrappers[i](onMessage)
+		}
+		s.Events.OnMessage = onMessage
+	}
+
+	if onErrorWrappers != nil {
+		onError := func(events.Client, error) {
+		}
+		for i := len(onErrorWrappers) - 1; i >= 0; i-- {
+			onErrorWrappers[i](onError)
+		}
+	}
+
+	if onConnectWrappers != nil {
+		onConnect := func(events.Client, events.Packet) {
+		}
+		for i := len(onConnectWrappers) - 1; i >= 0; i-- {
+			onConnectWrappers[i](onConnect)
+		}
+	}
+
+	if onDisconnectWrappers != nil {
+		onDisconnect := func(events.Client, error) {
+		}
+		for i := len(onDisconnectWrappers) - 1; i >= 0; i-- {
+			onDisconnectWrappers[i](onDisconnect)
+		}
+	}
+
+	if onSubscribeWrappers != nil {
+		onSubscribe := func(filter string, cl events.Client, qos byte, isFirst bool) {
+		}
+		for i := len(onSubscribeWrappers) - 1; i >= 0; i-- {
+			onSubscribeWrappers[i](onSubscribe)
+		}
+	}
+
+	if onUnsubscribeWrappers != nil {
+		onUnsubscribe := func(filter string, cl events.Client, isLast bool) {}
+		for i := len(onUnsubscribeWrappers) - 1; i >= 0; i-- {
+			onUnsubscribeWrappers[i](onUnsubscribe)
+		}
+	}
+
+	return nil
+}
+
 // Close attempts to gracefully shut down the server, all listeners, clients, and stores.
 func (s *server) Close() error {
 	close(s.done)
@@ -738,6 +866,10 @@ func (s *server) Close() error {
 
 	if s.Store != nil {
 		s.Store.Close()
+	}
+
+	for _, p := range s.Plugin {
+		p.Close()
 	}
 
 	return nil
@@ -825,4 +957,11 @@ func copySystemInfo(dst *system.Info, src *persistence.ServerInfo) {
 	dst.Inflight = src.Inflight
 	dst.Retained = src.Retained
 	dst.Subscriptions = src.Subscriptions
+}
+
+func RegisterPlugin(name string, new NewPlugin) {
+	if _, ok := plugins[name]; ok {
+		panic("duplicated plugin: " + name)
+	}
+	plugins[name] = new
 }

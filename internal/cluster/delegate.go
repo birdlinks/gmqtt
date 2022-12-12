@@ -3,7 +3,7 @@ package cluster
 import (
 	"encoding/json"
 	"fmt"
-	mqtt "github.com/birdlinks/gmqtt"
+	mqtt "github.com/birdlinks/gmqtt/internal/server"
 	"github.com/birdlinks/gmqtt/internal/system"
 	"github.com/hashicorp/memberlist"
 	"sync"

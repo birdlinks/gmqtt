@@ -4,15 +4,16 @@ import (
 	"flag"
 	"github.com/birdlinks/gmqtt/internal/config"
 	"github.com/birdlinks/gmqtt/internal/persistence/bolt"
+	mqtt "github.com/birdlinks/gmqtt/internal/server"
 	"go.etcd.io/bbolt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	mqtt "github.com/birdlinks/gmqtt"
 	"github.com/birdlinks/gmqtt/internal/listeners"
 	"github.com/birdlinks/gmqtt/internal/log"
+	"github.com/birdlinks/gmqtt/plugin/example"
 )
 
 func main() {
@@ -33,11 +34,13 @@ func main() {
 	}
 
 	log.Init(conf.Log)
+	mqtt.RegisterPlugin("example", example.New)
 
 	// server options...
 	options := &mqtt.Options{
 		BufferSize:      conf.Mqtt.BufferSize,      // Use default values 1024 * 256
 		BufferBlockSize: conf.Mqtt.BufferBlockSize, // Use default values 1024 * 8
+		PluginOrder:     []string{"example"},
 	}
 
 	log.Info("MQTT Broker initializing...")

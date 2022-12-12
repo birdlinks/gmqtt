@@ -48,6 +48,7 @@ type Clientlike interface {
 // The `mqtt.ErrRejectPacket` error can be returned to reject and abandon any further
 // processing of the packet.
 type OnProcessMessage func(Client, Packet) (Packet, error)
+type OnProcessMessageWrapper func(OnProcessMessage) OnProcessMessage
 
 // OnMessage function is called when a publish message is received. Note,
 // this hook is ONLY called by connected client publishers, it is not triggered when
@@ -59,21 +60,27 @@ type OnProcessMessage func(Client, Packet) (Packet, error)
 // This function will block message dispatching until it returns. To minimise this,
 // have the function open a new goroutine on the embedding side.
 type OnMessage func(Client, Packet) (Packet, error)
+type OnMessageWrapper func(OnMessage) OnMessage
 
 // OnConnect is called when a client successfully connects to the broker.
 type OnConnect func(Client, Packet)
+type OnConnectWrapper func(OnConnect) OnConnect
 
 // OnDisconnect is called when a client disconnects to the broker. An error value
 // is passed to the function if the client disconnected abnormally, otherwise it
 // will be nil on a normal disconnect.
 type OnDisconnect func(Client, error)
+type OnDisconnectWrapper func(OnDisconnect) OnDisconnect
 
 // OnError is called when errors that will not be passed to
 // OnDisconnect are handled by the server.
 type OnError func(Client, error)
+type OnErrorWrapper func(OnError) OnError
 
 // OnSubscribe is called when a new subscription filter for a client is created.
 type OnSubscribe func(filter string, cl Client, qos byte, isFirst bool)
+type OnSubscribeWrapper func(OnSubscribe) OnSubscribe
 
 // OnUnsubscribe is called when an existing subscription filter for a client is removed.
 type OnUnsubscribe func(filter string, cl Client, isLast bool)
+type OnUnsubscribeWrapper func(OnUnsubscribe) OnUnsubscribe
