@@ -101,9 +101,9 @@ func (s *server) processPublish(cl *clients.Client, pk packets.Packet) error {
 	ci := cl.Info()
 	// if an OnProcessMessage hook exists, potentially modify the packet.
 	if s.Events.OnProcessMessage != nil {
-		pkx, err := s.Events.OnProcessMessage(ci, events.Packet(pk))
+		pkx, err := s.Events.OnProcessMessage(ci, pk)
 		if err == nil {
-			pk = packets.Packet(pkx) // Only use the new package changes if there's no errors.
+			pk = pkx // Only use the new package changes if there's no errors.
 		} else {
 			// If the ErrRejectPacket is return, abandon processing the packet.
 			if err == ErrRejectPacket {
@@ -140,8 +140,8 @@ func (s *server) processPublish(cl *clients.Client, pk packets.Packet) error {
 
 	// if an OnMessage hook exists, potentially modify the packet.
 	if s.Events.OnMessage != nil {
-		if pkx, err := s.Events.OnMessage(ci, events.Packet(pk)); err == nil {
-			pk = packets.Packet(pkx)
+		if pkx, err := s.Events.OnMessage(ci, pk); err == nil {
+			pk = pkx
 		}
 	}
 
@@ -155,7 +155,7 @@ func (s *server) processPublish(cl *clients.Client, pk packets.Packet) error {
 				Type: packets.Subscribe,
 			},
 			Topics:     []string{pk.Properties.ResponseTopic},
-			SubOss:     []packets.SubOptions{packets.SubOptions{QoS: pk.FixedHeader.Qos, NoLocal: true}},
+			SubOss:     []packets.SubOptions{{QoS: pk.FixedHeader.Qos, NoLocal: true}},
 			Properties: &packets.Properties{ResponseTopic: pk.Properties.ResponseTopic},
 		}
 		s.processSubscribe(cl, sp)

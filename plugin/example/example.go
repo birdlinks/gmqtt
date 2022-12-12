@@ -1,7 +1,6 @@
 package example
 
 import (
-	"fmt"
 	"github.com/birdlinks/gmqtt/internal/events"
 	"github.com/birdlinks/gmqtt/internal/log"
 	"github.com/birdlinks/gmqtt/internal/server"
@@ -23,12 +22,12 @@ func (h *Example) Version() string {
 }
 
 func (h *Example) Init(s server.Server) error {
-	fmt.Println("started...")
+	log.Info("example plugin started...")
 	return nil
 }
 
 func (h *Example) Close() error {
-	fmt.Println("stopped...")
+	log.Info("example plugin stopped...")
 	return nil
 }
 
